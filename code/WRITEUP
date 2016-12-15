@@ -1,0 +1,359 @@
+Template for CSCI402 Project Writeup
+
+This document is intended to act as a template for students to assist them in finishing the project writeup. A well-written writeup is helpful for students to summarize their achievements and for graders to evaluate the student's efforts.
+
+As far as the length of the writeup, you need to explain your code in the writeup.  Just using a few words isn't going to get it done.  In addition, remember that this is an advanced class, so you don't need to describe every line of code that you write.  We are interested in what you understand about the theory behind the code you're writing and your level of understanding for the practical problems we assign to use the code you wrote to implement the theory.  So don't be too brief and don't go overboard on what you describe.
+
+Some Basic Writeup Rules
+1. The writeup must be a plain text file and submitted with your source code together.  No MS word documents.
+
+2. If you fail to finish the development of your code describe what you've got for each part of the project.  You should at least be able to describe your design.
+
+3. Usually there are a number of parts for each assignment, the development of one part may be related to another. You have the freedom to talk about each part separately or together under one section of your writeup.  Whichever way you decide, be sure that you make it clear how you are describing each part.
+
+4. The lines starting with an index number, such as I, II, III, etc., and starting with '+' are section and subsection headings. You must retain these headings in your WRITEUP file, placing your specific writeup description within the headings. 
+
+5. The words starting with '-' are instructions about what to put in those section/subsection headings.  Do no include them in the writeup file you submit.
+
+WRITEUP Template
+ Title:  Writeup for Project 3, Fall 2015
+ Date:  11/02/15
+ Group:	Name			Email	
+	Henry Liu			henryyli@usc.edu
+	Priscilla Rodriguez	plrodrig@usc.edu
+	Akriti Sehrawat		sehrawat@usc.edu
+	Joshua Lum		joshuanl@usc.edu
+ 
+I. Requirements:
+
+For part 1, we start making use of the translation lookaside buffer (TLB). We have to first ensure that we are not using the original page table (we do this by commenting out “machine -> pageTable = pageTable;”). Notice that, like a page table, the TLB does physical to virtual address translation. It is different from the traditional page table because it is used as a cache — to speed up address translation. Also notice that we didn’t have to create a new TLB - we simply had to use the preexisting one found in the machine directory. We need to make sure that the TLB state is maintained during changes — like context switches, changing recent threads, changing valid bits, changing dirty bits, etc. TLB usage can result in two outcomes - a “TLB hit” and a “TLB miss”. If we get a “TLB” miss, we use other data structures for lookup. We will also have to consult and maintain these changes with the inverted page table (IPT), later on. 
+
+Note that, specifically, on a context switch we have two options - we can either invalidate all the TLB entries, or maintain them for the next time the same process returns. In our case, we keep track of the dirty and used flags for the TLB entries. Testing Part 1 involved using the “matmult” test (short for matrix multiplication). We know that we have the correct implementation if we get the value 7220 passed to the Exit syscall. We must ensure that threads, running in different address spaces, do not corrupt each other’s memories. 
+
+For Part 2, we had to implement virtual memory formally. The main way to begin this is to create a swap file — this is the file that we move our entries to if they are dirty (i.e. the page has been altered in some way or form). Swap file is just one of the two location where a file can be in terms of disk location - it can also be in the EXECUTABLE (or neither, in memory). Since we are implementing “demand paging”, we must preload nothing. We must then keep track of what the disk location of each page is. 
+
+Notice that we may confront the case where memory is full. In this situation, we will have to “evict” a page to make room. The inverted page table helps in making the decision of selecting this page. Note that, unlike a page table or the TLB, the IPT translates from virtual to physical addresses. We must also decide the page replacement policy — how do we decide which page gets evicted from memory? For this, we make use of two policies - either FIFO or RANDOM. We specify this through command line arguments. We must then test Part 2 using the matmult and sort programs.
+
+For Part 3, we are implementing networking support so that multiple Nachos instances can communicate with each other. This includes implementing remote procedural calls for the locks, CVs and MVs. Note that the goal of a remote procedural call is to ensure that the sender or receiver don’t know that they are on different nodes — the system must seem natural to them. We will also implement new system calls to deal with monitor variables. 
+
+We are essentially implementing a distributed system within Nachos - with “client” and “server” implementations. The “server” must be able to handle multiple “clients”. We have new variables like machine ID, to help with communications between these instances. The server performs the system call for the client - and returns the output (or doesn’t if there is no output) back to the client. Each Nachos implementation is a node. We test part 3 by running Nachos on multiple terminals. 
+
+II. Assumptions:
+	Assuming our precious assigments that is related to this project are done correctly. We are building on top of project 2.
+
+	Command-line arguments for page eviction are -RANDOM and -FIFO. 
+	
+
+III. Design:
+- This section is to cover your logic and ideas as to how you are going to solve the problem presented.  This should include a description of classes, algorithms, etc. This is not code. You must document ALL parts of a project.
+	Part 1: 
+		Part 1 involved TLB implementations. Note that the TLB pre-exists in the machine directory, we just start to use it now. I placed an #define USE_TLB in the machine.h in order to use the TLB. In order to do so successfully, we begin with commenting out machine->pageTable = pageTable in addrSpace’s restoreState. A typical TLB entry already has values such as physicalPage, virtualPage, valid bit, dirty bit, etc. We account for a new case in the ExceptionHandler — for what happens during a PageFaultException. In this case, we first consult the TLB with a function called HandlePageFault. This function takes in the neededVirtualPage that is computed in the ExceptionHandler. Inside HandlePageFault, the first thing we do is disable interrupts in order to prevent context switches when dealing with the TLB. We first search through the IPT to look for the physical page number, once we compare it is a match(valid bit, neededVPN, and same address space). Now once we have a hit, we will populate the TLB with the IPT. The tlbIndex counter gets incremented in order to ensure population of TLB in different indexes.  In step 1, we populated the TLB with the page table, but made this change in STEP2. The IPT, is created in the system.cc/h files were kernel data structures are kept. In the addrspace constructor, we also populate the IPT with the pagetable information. The IPT is indexed by physical page number.  
+
+	Part 2:
+		Part 2 involved continuing TLB implementations and building virtual memory. We create an inverted page table, which stores the mapping between physical and virtual pages. In our case, the IPT entry (each row in the IPT) inherits from translationEntry in system.h - with the addition of an addrSpace pointer. The IPT is initialised in the addrSpace constructor. Since all of this must be made thread-safe, we have an iptLock. 
+
+	We update the IPT values appropriately upon PageFaults, in exception.cc. This include setting values for valid bits, dirty bits, etc. The pageTable has been edited to include rows of “PTEntry” instead of “TranslationEntry” in addrSpace.h/cc. PTEntry is a class that inherits from TranslationEntry with the addition of “base” and “offset” - base specifies where the page is, and offset specifies the byte within the page. 
+
+	We also implement a page eviction policy. To select between RANDOM or FIFO, we parse command line arguments - the implementation for this is in main.cc. Depending on which is selected, we deallocate pages in addrSpace.cc accordingly. System.cc includes a fifo list for the FIFO option, along with an evict lock for thread-safety. Furthermore, we have the implementations for the swap file in system.cc. The swap file is a cache of dirty, evicted physical memory pages - which is paged as we have been paging so far. Any evicted page can go to any available location in the swap file. We also edit the stackStart and pageCount values in addrSpace.cc. In exception.cc, in order to handle PageFaults appropriately, we create new functions such as HandleIPTMiss(), HandlePageFault() and HandleFullMemory(). 
+
+
+	Part 3:
+		We move all the system call implementations/mechanisms from exception.cc to nettest.cc so exception.cc only can only execute remote procedure calls, request syscalls to nachos server node, and in nachos server code, it is where we implement the mechanisms of system calls, where we update and keep track lock/CV/MV tables, and return the result of whether the syscalls succeeded or not. To call system calls, it should be exactly the same to call system calls from 
+		user programs as how we call system calls from Project 2. The difference between Project 2 and Project 3 system calls is that we need to start a seperate nachos server node (machine 0) to handle remote procedure calls from nachos client node.  
+
+IV. Implementation:
+	+ Files Modified
+		Part 1:
+			threads/system.h - added extern for int tlbIndex, IPT class
+
+			threads/system.cc - added int tlbIndex, initial IPT declarations
+
+			userprog/addrspace.cc - altered SaveState() and RestoreState(), IPT initialisations in constructor
+
+			userprog/exception.cc - added tlbLock, new case in ExceptionHandler, HandlePageFault() function
+
+			machine/machine.cc - Included #define TLB_USE, and increased number of NumPhysPages
+
+		Part 2:
+
+			threads/system.h - extern IPT/iptLock etc, initialised swap file, swap file bitMap and lock, page eviction policy and page eviction fifo list
+
+			threads/system.cc - initialised IPT formally, dealt with swap file, swap file bitMap and lock, page eviction policy and page eviction fifo list, 
+
+			userprog/exception.cc - dealt with PageFault case (check TLB, check IPT, deal with IPT misses, etc), completed HandlePageFault(), completed HandleFullMemory(), completed HandleIPTMiss(),
+
+			userprog/addrspace.h - created (inherited) class PTEntry, 
+
+			userprog/addrspace.cc - initialised and altered IPT values in appropriate places (e.g. valid bit value, dirty bit value), made IPT thread-safe using lock, used PTEntry for pageTable, altered pageCount and stackStart, altered SaveState() function, 
+
+			threads/main.cc - dealt with parsing command line arguments for page eviction, 
+
+			userprog/progtest.cc - commented out “delete executable” so we don’t close the file
+
+			
+
+
+		Part 3:
+			syscall.h - add new MV syscalls, createMV/destroyMV/getMV/setMV.
+			exception.cc - add new MV syscalls implementations, delete previous system calls implementations and implemented remote procedure calls for system calls.
+			nettest.cc - implement Server code, and implement system call mechanism.
+			system.h - added kernelMV data structure and ServerLock, ServerCV data structure
+			network directory makefile - added parameters for compilation in network directory
+
+	+ Files added
+		Part 1: testmatmult.c, testmatmultfork.c,testmatmult2.c 
+
+		Part 2:
+			matmult_fork.c
+
+		Part 3:
+			networkTest.c - testfiles for part 3 networking
+
+	+ Data Structures added, and the file they were added to.
+		Part 1:
+			threads/system.h - class IPT
+
+		Part 2:
+
+			userprog/addrspace.h - class PTEntry
+
+			userprog/addrspace.h - enum diskLoc
+
+
+		Part 3:
+			system.h - added kernelMV data structure and ServerLock, ServerCV data structure
+				struct KernelMV{		// KernelMV table to keep track of MV activities 
+				    char* mvName;
+				    int size;
+				    int* array;
+				    AddrSpace* as;
+				    bool isToBeDeleted;
+				    int numRequested;
+				    KernelMV(): mvName("mvName"),size(NULL),array(NULL), as(NULL), isToBeDeleted(0){};
+				};
+				extern KernelMV* kernelMVs[200];	
+				struct ServerLock{  //Server Lock table to keep track of which machine(node) owns which lock
+				    bool busy;
+				    int owner;
+				    List* queue;
+				    ServerLock(): busy(false), owner(0),queue(NULL){};
+				};	
+				struct ServerCV{	//Server CV table to keep track of which machine(node) owns which CV
+				    int lockIndex; //ServerLock table index
+				    List* queue;
+				    ServerCV() : lockIndex(-1),queue(NULL) {};
+				};
+
+	+ Data Structures modified, and the file they were added to.
+		Part 1: userprog/addrspace.h - AddrSpace::AddrSpace(OpenFile *executable) 
+
+		Part 2:
+			threads/system.h - struct SingleProcess 
+		
+		Part 3: 
+
+
+	+ Functions added and in which file.
+		Part 1: HandlePageFault(int neededVPN) 
+	
+		Part 2: 
+			syscall/exception.cc:
+				HandleFullMemory()
+				HandleIPTMiss()
+
+		Part 3:
+			syscall.h/exception.cc:		
+				int CreateMV(char *name, int size, int arrayLen);
+				void DestroyMV(int mvIndex);
+				int GetMV(int mvIndex, int arrayIndex);
+				void SetMV(int mvIndex, int newIndex, int newValue);
+			netest.cc
+				NachosServer();
+
+
+	+ Functions modified and in which file.
+		Part 1:
+
+			threads/system.cc - Initialize(int argc, char **argv)
+
+			userprog/addrspace.cc - AddrSpace::SaveState(), AddrSpace::RestoreState(), AddrSpace::AddrSpace(OpenFile *executable) 
+
+			userprog/exception.cc - ExceptionHandler(ExceptionType which), int Exit_Syscall(int val)
+
+	
+
+		Part 2:
+
+			threads/system.cc - Initialize(int argc, char **argv)
+
+			userprog/addrspace.cc - AddrSpace::AddrSpace(OpenFile *executable) : fileTable(MaxOpenFiles), AddrSpace::AllocatePages(), AddrSpace::DeallocatePages(), AddrSpace::DeallocateEightPages(int startingPage)
+
+			userprog/exception.cc - HandlePageFault(int neededVPN), HandleFullMemory(), ExceptionHandler(ExceptionType which), void Fork_Syscall(unsigned int vaddr), void Exec_Syscall(unsigned int vaddr, int len), int Exit_Syscall(), HandleIPTMiss(int virtPageNum)
+
+			threads/main.cc - main(int argc, char **argv)
+
+			userprog/progtest.cc - StartProcess(char *filename)
+			
+
+		Part 3:
+			exception.cc:	//deleteing previous implementations and implement rpc instead, syscall mechanisms are implemented in nettest.cc and returned to exception.cc
+				void Acquire(int id);
+				void Release(int id);
+				void Wait(int cvID, int lockID);
+				void Signal(int cvID, int lockID);
+				void Broadcast(int cvID, int lockID);
+				int CreateLock(char *name, int size);
+				void DestroyLock(int id);
+				int CreateCondition(char *name, int size);
+				void DestroyCondition(int id);
+
+
+V. Testing:  (For each test case, you must show)
+	+ How to test
+**********************************************************************
+	Part 1:
+
+		Go to VM, make sure every directory is compiled, even VM. 
+		Run these commands:
+		nachos -x ../test/testfiles
+		nachos -x ../test/testmatmult
+		nachos -x ../test/testmatmult2
+		nachos -x ../test/testmatmultfork
+
+****testfiles: *******************************************************
+This PROVES our test case from Project 2 works in our Part1.  
+This is a basic test to make sure our Exec can create a new process with the
+executable file 'testfiles.' In testfiles, it is a simple program to test the file handling system calls. Also, makes a call to yield, and forks the DoIt function      THREE times.
+	
+OUTPUT:
+
+Hi.
+There
+Grader. This is being forked. 
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+Hi.
+There
+Grader. This is being forked. 
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+Hi.
+There
+Grader. This is being forked. 
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+Testing a write.
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+
+
+****testmatmult: *******************************************************
+This PROVES our test case from Project 3 Part 1 works. This proves that we are able to use Exec with one matmult function. 
+It first prints out 0 because main calls Exit first, the expected value should be 0 if main does not execute matmult code. In the third line, the expected value of
+7220 is correct. 
+	
+OUTPUT:
+
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+This is the val of matmult when Exit called: 7220 
+Exiting Thread..
+
+
+****testmatmult2: *******************************************************
+This PROVES our test case from Project 3 Part 1 works. This proves we can use Two Exec’s on Matmult. Matmult should produce two values of 7220 here.
+	
+OUTPUT:
+
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+This is the val of matmult when Exit called: 7220 
+Exiting Thread..
+This is the val of matmult when Exit called: 7220 
+Exiting Thread..
+
+
+****testmatmultfork: *******************************************************
+This PROVES our test case from Project 3 Part 1 works. This proves we can use Two Fork’s on Matmult.
+7220 should be printed out twice, and matmult should have the value of 0 at the end because of main. 
+	
+OUTPUT:
+
+This is the val of matmult when Exit called: 7220 
+Exiting Thread..
+This is the val of matmult when Exit called: 7220 
+Exiting Thread..
+This is the val of matmult when Exit called: 0 
+Exiting Thread..
+
+Part 2:
+
+PRETESTING: Before testing, go to: 
+			1) network dir: do a "gmake clean && gmake",
+			3) test dir: do a "gmake clean && gmake".
+						
+			If you have issues with the test dir (e.g. "Permission Denied"), go to:
+				a) bin dir: do a "chmod 700 * && setenv PATH ../gnu/:$PATH"
+				b) gnu dir: do a "chmod 700 *"
+							
+			After doing all these compilations -- go to the 'network' directory to run. 
+	
+TESTING: Run - 
+		'nachos -FIFO -x ../test/matmult_fork' or 
+		'nachos -RANDOM -x ../test/matmult_fork'
+		
+OUTPUT:
+		Matmult_fork:
+		(with -FIFO)
+			aludra.usc.edu(6): nachos -FIFO -x ../test/matmult_fork
+			This is the val of matmult: 7220 
+			Exiting Thread..
+			This is the val of matmult: 7220 
+			Exiting Thread..
+			Machine halting!
+
+			Ticks: total 4785323, idle 0, system 3340270, user 1445053
+			Disk I/O: reads 0, writes 0
+			Console I/O: reads 0, writes 0
+			Paging: faults 0
+			Network I/O: packets received 0, sent 0
+
+			Cleaning up...
+				
+		(with -RANDOM)
+			aludra.usc.edu(7): nachos -RANDOM -x ../test/matmult_fork
+			This is the val of matmult: 7220 
+			Exiting Thread..
+			This is the val of matmult: 7220 
+			Exiting Thread..
+			Machine halting!
+
+			Ticks: total 4785323, idle 0, system 3340270, user 1445053
+			Disk I/O: reads 0, writes 0
+			Console I/O: reads 0, writes 0
+			Paging: faults 0
+			Network I/O: packets received 0, sent 0
+
+			Cleaning up...
+		
+
+VI. Discussion:
+	+ Experiment expectation.  (What is supposed to happen.)
+		Part 2:
+			Matmult_Fork should give two values of 7220, followed by 'Exiting Thread..'.
+			Note that this should be the case regardless of -RANDOM or -FIFO. Random and Fifo are just page eviction policies.
+			
+	+ Experiment result.  (What actually happened.)
+		Part 2: 
+			Matmult_fork works as expected.
+	
+	+ Explanation
+		- Explain your experiment result - how it proves what 
+		  you were supposed to prove.
+		  
+		Part 2:
+			We know that the final values for matrix multiplication should be 7220. Since we are getting that value, it implies that our virtual memory has been implemented correctly.
+			For matmult_fork, this also implies that multiple instances of the above are functioning correctly.
+
+VIII. Miscellaneous:
+- Whatever else you want the grader know about your development.  You can create your own subsections headings here. 
